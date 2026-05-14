@@ -150,8 +150,8 @@ class Session:
             },
         }
         await self.send_json(response)
-            logger.info(f"[{self.device_id}] Handshake successful")
-            event_bus.emit("device_online", device_id=self.device_id)
+        logger.info(f"[{self.device_id}] Handshake successful")
+        event_bus.emit("device_online", device_id=self.device_id)
 
     async def _handle_listen(self, data: dict) -> None:
         state = data.get("state")
