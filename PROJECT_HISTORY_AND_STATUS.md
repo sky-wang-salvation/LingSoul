@@ -145,28 +145,84 @@ OPENAI_TIMEOUT_SECONDS=30
 
 ---
 
-## 8. 后续规划（2026-05-12 新增）
+## 8. 已完成操作（2026-05-14）
 
-### 8.1 ASR/TTS 通路验证（当前优先级最高）
+### 8.1 ASR/TTS 通路验证 ✅
 
-- 重启 `xiaozhi-server`，唤醒设备说话，确认 `step-asr` + `cixingnansheng` 组合无报错，能听到 TTS 回复。
+- 2026-05-14 实测完整链路跑通：
+  - Turn 1：ASR 识别"你好。"→ OpenClaw LLM 回复 272字 → TTS wav 2.27MB → 设备播放出声。
+  - 后续轮次出现 `no speech found` 属正常（麦克风采到空音频），不是 Bug。
 
-### 8.2 自闭症陪护智能娃娃（新应用场景，待详谈）
+### 8.2 GitHub 版本管理 ✅
 
-- 现有技术栈（ESP32 + xiaozhi-server + OpenClaw）可复用。
-- 需要另行规划：专属前端页面（家长/护理者监控端）、对话策略调整（温柔/鼓励型 Prompt）、数据记录等。
-- **详细方案待下一轮会话讨论**。
+- 仓库：[https://github.com/sky-wang-salvation/LingSoul](https://github.com/sky-wang-salvation/LingSoul)
+- 初始提交包含：xiaozhi-server、myapp-channel 插件、ESP32 工程骨架、开题报告。
+- `.gitignore` 已排除 `.env`（API Key）、`.venv`、`build/`。
 
-### 8.3 其他待做
+### 8.3 OpenClaw 模型升级 ✅
 
-- bridge idle timeout 优化（当前 30s，可在 `openclaw.json` 调大 `timeoutMs`）。
-- 固件 IP 硬编码问题（长期方案：mDNS 或配网页面输入服务端地址）。
-- `start_server.sh` 中打印的 IP 地址（`10.142.19.119`）为过时硬编码，无实际影响但可更新。
+- 从 `step-3.5-flash` 升级为 `step-3.7-flash`（通过 CC Switch 添加，`openclaw.json` 已更新）。
+- `custom-api-stepfun-com`（旧 3.5 Provider）已删除。
+- `agents.defaults.model.primary` 现为 `step-3-7-flash/step-3.7-flash`。
+- 已执行 `openclaw gateway restart` 使配置生效。
+
+### 8.4 SOUL.md 改写（灵伴 ASD 场景）✅
+
+- 文件：`~/.openclaw/workspace/SOUL.md`
+- 保留"灵伴"名字，针对自闭症儿童定制：
+  - 每句话不超过 20 字，简单词汇
+  - 积极强化、重复确认、情绪优先、不评判
+  - 情绪响应策略（哭泣/沉默/焦虑）
+  - 互动游戏库（按情绪状态选择）
+- `IDENTITY.md` 同步更新，预留孩子基本信息填写位置。
+
+### 8.5 固件：始终聆听模式（方案 B）✅
+
+- 文件：`~/Downloads/xiaozhi-esp32-main/main/application.cc`
+- 修改内容：
+  1. `kDeviceStateIdle` 分支：`EnableWakeWordDetection(false)`，并 `Schedule` 自动调用 `WakeWordInvoke("")`
+  2. `ContinueWakeWordInvoke`：连接失败时改为 `SetDeviceState(kDeviceStateIdle)` 触发重试，而非重新开启唤醒词
+- **需重新编译烧录固件**：`idf.py build flash`（需先修复 cryptography 依赖，见 8.7）
+
+### 8.6 家长监控前端 ✅
+
+- 文件：`xiaozhi-openclaw/xiaozhi-server/frontend/dashboard.html`
+- 访问方式：服务启动后浏览器打开 `http://<MacIP>:8080/dashboard.html`
+- 实现：
+  - `core/event_bus.py`：内存事件总线，存 200 条历史
+  - `core/session.py`：在 ASR、LLM、设备上线/离线时 emit 事件
+  - `core/server.py`：新增 `/dashboard` WebSocket 端点推送事件，`/dashboard.html` HTTP 端点提供页面
+  - 前端：对话气泡（孩子/灵伴分左右）、今日统计、事件原始日志，纯 HTML/JS，无框架依赖
+
+### 8.7 待办：烧录新固件
+
+- 先修复 ESP-IDF Python 依赖：
+  ```bash
+  ~/Downloads/esp-idf-v5.5.3/install.sh
+  ```
+- 再编译烧录：
+  ```bash
+  source ~/Downloads/esp-idf-v5.5.3/export.sh
+  cd ~/Downloads/xiaozhi-esp32-main
+  idf.py build flash monitor -p /dev/cu.usbmodem3101
+  ```
 
 ---
 
-## 9. 文档版本信息
+## 9. 当前技术栈快照（2026-05-14）
 
-- **整理日期**：2026-05-12（含 2026-05-11 操作）。
+| 组件 | 状态 | 说明 |
+|---|---|---|
+| ESP32-S3 固件 | 待烧录 | 已修改始终聆听，待 `idf.py flash` |
+| xiaozhi-server | 运行中 | ASR/TTS 通路已验证，新增 event_bus + dashboard |
+| OpenClaw | 运行中 | 已切换 step-3.7-flash，SOUL.md 已更新 |
+| 家长监控前端 | 已写完 | 待重启 server 验证 |
+| GitHub | 已推送 | 初始版本，后续修改需 `git commit && git push` |
+
+---
+
+## 10. 文档版本信息
+
+- **整理日期**：2026-05-14（更新至始终聆听 + 前端 + 模型升级）。
 - **性质**：会话摘要 + 实施状态快照，不等同于官方文档。
 - **若与机器现状不一致**：以本机 `openclaw.json`、`xiaozhi-server/.env`、`sdkconfig`、实际串口、`idf.py --version` 为准。

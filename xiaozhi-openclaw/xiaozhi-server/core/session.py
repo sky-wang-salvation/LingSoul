@@ -10,6 +10,7 @@ from services.asr import AsrService, LlmService, TtsService
 from utils.logger import logger
 
 from .protocol import ProtocolHandler
+from . import event_bus
 
 
 class Session:
@@ -85,6 +86,7 @@ class Session:
         except Exception:
             logger.error(f"[{self.device_id}] Connection loop error", exc_info=True)
         finally:
+            event_bus.emit("device_offline", device_id=self.device_id)
             with suppress(Exception):
                 await self.abort()
 
@@ -148,7 +150,8 @@ class Session:
             },
         }
         await self.send_json(response)
-        logger.info(f"[{self.device_id}] Handshake successful")
+            logger.info(f"[{self.device_id}] Handshake successful")
+            event_bus.emit("device_online", device_id=self.device_id)
 
     async def _handle_listen(self, data: dict) -> None:
         state = data.get("state")
@@ -310,6 +313,7 @@ class Session:
                 return
 
             if user_text:
+                event_bus.emit("asr_result", device_id=self.device_id, text=user_text, turn=turn_id)
                 await self.send_json(
                     {"type": "stt", "session_id": self.id, "text": user_text}
                 )
@@ -331,6 +335,7 @@ class Session:
             if not assistant_text:
                 assistant_text = "抱歉，我现在有点忙，稍后再试试。"
 
+            event_bus.emit("llm_reply", device_id=self.device_id, text=assistant_text, turn=turn_id)
             await self.send_json(
                 {"type": "llm", "session_id": self.id, "emotion": "neutral", "text": assistant_text}
             )

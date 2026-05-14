@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>灵伴监控台</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: #f5f5f5;
+      color: #222;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #fff;
+      border-bottom: 1px solid #ddd;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    header h1 { font-size: 18px; font-weight: 600; letter-spacing: .5px; }
+    header .subtitle { font-size: 13px; color: #888; }
+
+    .status-bar {
+      display: flex;
+      gap: 24px;
+      padding: 12px 24px;
+      background: #fff;
+      border-bottom: 1px solid #eee;
+      font-size: 13px;
+    }
+    .status-item { display: flex; align-items: center; gap: 6px; }
+    .dot {
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      background: #ccc;
+      flex-shrink: 0;
+    }
+    .dot.online  { background: #4caf50; }
+    .dot.offline { background: #ccc; }
+    .dot.ws-ok   { background: #2196f3; }
+    .dot.ws-err  { background: #f44336; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 16px;
+      padding: 16px 24px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      border-bottom: 1px solid #eee;
+      background: #fafafa;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .card-header button {
+      font-size: 11px;
+      padding: 3px 8px;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      background: #fff;
+      cursor: pointer;
+      color: #555;
+    }
+    .card-header button:hover { background: #f0f0f0; }
+
+    /* Conversation log */
+    #log {
+      padding: 12px;
+      height: 520px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .msg {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      max-width: 80%;
+    }
+    .msg.child  { align-self: flex-start; }
+    .msg.lingsoul { align-self: flex-end; }
+
+    .msg .label {
+      font-size: 11px;
+      color: #999;
+      padding: 0 4px;
+    }
+    .msg.lingsoul .label { text-align: right; }
+
+    .bubble {
+      padding: 8px 12px;
+      border-radius: 12px;
+      font-size: 14px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .msg.child .bubble {
+      background: #f0f0f0;
+      border-radius: 2px 12px 12px 12px;
+    }
+    .msg.lingsoul .bubble {
+      background: #e8f4fd;
+      border-radius: 12px 2px 12px 12px;
+    }
+
+    /* Stats sidebar */
+    #stats {
+      padding: 12px;
+      font-size: 13px;
+    }
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 7px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .stat-row:last-child { border-bottom: none; }
+    .stat-label { color: #666; }
+    .stat-val { font-weight: 600; }
+
+    /* Event raw log */
+    #rawlog {
+      padding: 10px;
+      height: 160px;
+      overflow-y: auto;
+      font-size: 11px;
+      font-family: "Menlo", "Consolas", monospace;
+      color: #555;
+      line-height: 1.6;
+      background: #fafafa;
+    }
+
+    .ts { color: #aaa; margin-right: 6px; }
+    .ev-online    { color: #4caf50; }
+    .ev-offline   { color: #f44336; }
+    .ev-asr       { color: #1976d2; }
+    .ev-llm       { color: #7b1fa2; }
+
+    @media (max-width: 700px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>灵伴监控台</h1>
+    <div class="subtitle">面向自闭症儿童的智能陪护玩偶 · 家长端</div>
+  </div>
+</header>
+
+<div class="status-bar">
+  <div class="status-item">
+    <span class="dot" id="ws-dot"></span>
+    <span id="ws-label">连接中…</span>
+  </div>
+  <div class="status-item">
+    <span class="dot" id="dev-dot"></span>
+    <span id="dev-label">设备离线</span>
+  </div>
+  <div class="status-item" style="margin-left:auto; color:#aaa;" id="last-update">—</div>
+</div>
+
+<div class="layout">
+  <!-- 对话记录 -->
+  <div class="card">
+    <div class="card-header">
+      对话记录
+      <button onclick="clearLog()">清空</button>
+    </div>
+    <div id="log"></div>
+  </div>
+
+  <!-- 侧边栏 -->
+  <div style="display:flex; flex-direction:column; gap:16px;">
+    <!-- 统计 -->
+    <div class="card">
+      <div class="card-header">今日统计</div>
+      <div id="stats">
+        <div class="stat-row">
+          <span class="stat-label">对话轮次</span>
+          <span class="stat-val" id="s-turns">0</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">识别成功</span>
+          <span class="stat-val" id="s-asr">0</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">灵伴回复</span>
+          <span class="stat-val" id="s-llm">0</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">设备上线次数</span>
+          <span class="stat-val" id="s-online">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 原始事件日志 -->
+    <div class="card">
+      <div class="card-header">事件日志</div>
+      <div id="rawlog"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── 配置 ──────────────────────────────────────────────────────────────────
+  // 服务器地址：和浏览器所在机器的 IP 一致，端口 8080
+  const WS_URL = `ws://${location.hostname}:8080/dashboard`;
+
+  // ── 状态 ──────────────────────────────────────────────────────────────────
+  let stats = { turns: 0, asr: 0, llm: 0, online: 0 };
+  let ws = null;
+
+  // ── UI helpers ────────────────────────────────────────────────────────────
+  function fmtTime(ms) {
+    const d = new Date(ms);
+    return d.toLocaleTimeString("zh-CN", { hour12: false });
+  }
+
+  function setWsStatus(ok) {
+    const dot = document.getElementById("ws-dot");
+    const lbl = document.getElementById("ws-label");
+    dot.className = "dot " + (ok ? "ws-ok" : "ws-err");
+    lbl.textContent = ok ? "已连接服务器" : "服务器断开";
+  }
+
+  function setDevStatus(online, deviceId) {
+    const dot = document.getElementById("dev-dot");
+    const lbl = document.getElementById("dev-label");
+    dot.className = "dot " + (online ? "online" : "offline");
+    lbl.textContent = online ? `设备在线 · ${deviceId || ""}` : "设备离线";
+  }
+
+  function updateStats() {
+    document.getElementById("s-turns").textContent = stats.turns;
+    document.getElementById("s-asr").textContent   = stats.asr;
+    document.getElementById("s-llm").textContent   = stats.llm;
+    document.getElementById("s-online").textContent = stats.online;
+  }
+
+  function appendMsg(role, text, ts) {
+    const log = document.getElementById("log");
+    const div = document.createElement("div");
+    div.className = "msg " + role;
+    const label = role === "child" ? "孩子" : "灵伴";
+    div.innerHTML = `<div class="label">${label} · ${fmtTime(ts)}</div><div class="bubble">${escHtml(text)}</div>`;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function appendRaw(cls, text, ts) {
+    const el = document.getElementById("rawlog");
+    const line = document.createElement("div");
+    line.innerHTML = `<span class="ts">${fmtTime(ts)}</span><span class="${cls}">${escHtml(text)}</span>`;
+    el.appendChild(line);
+    el.scrollTop = el.scrollHeight;
+    // Keep raw log bounded
+    while (el.children.length > 200) el.removeChild(el.firstChild);
+  }
+
+  function clearLog() {
+    document.getElementById("log").innerHTML = "";
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+
+  function setLastUpdate(ts) {
+    document.getElementById("last-update").textContent = "更新 " + fmtTime(ts);
+  }
+
+  // ── 事件处理 ──────────────────────────────────────────────────────────────
+  function handleEvent(ev) {
+    setLastUpdate(ev.ts || Date.now());
+
+    if (ev.type === "history") {
+      (ev.events || []).forEach(handleEvent);
+      return;
+    }
+
+    if (ev.type === "device_online") {
+      stats.online++;
+      setDevStatus(true, ev.device_id);
+      appendRaw("ev-online", `设备上线 ${ev.device_id}`, ev.ts);
+    } else if (ev.type === "device_offline") {
+      setDevStatus(false, ev.device_id);
+      appendRaw("ev-offline", `设备离线 ${ev.device_id}`, ev.ts);
+    } else if (ev.type === "asr_result") {
+      stats.asr++;
+      stats.turns++;
+      appendMsg("child", ev.text, ev.ts);
+      appendRaw("ev-asr", `[ASR] ${ev.text}`, ev.ts);
+    } else if (ev.type === "llm_reply") {
+      stats.llm++;
+      appendMsg("lingsoul", ev.text, ev.ts);
+      appendRaw("ev-llm", `[灵伴] ${ev.text.slice(0, 60)}${ev.text.length > 60 ? "…" : ""}`, ev.ts);
+    }
+
+    updateStats();
+  }
+
+  // ── WebSocket 连接 ────────────────────────────────────────────────────────
+  function connect() {
+    setWsStatus(false);
+    ws = new WebSocket(WS_URL);
+
+    ws.onopen = () => {
+      setWsStatus(true);
+    };
+
+    ws.onmessage = (msg) => {
+      try {
+        const ev = JSON.parse(msg.data);
+        handleEvent(ev);
+      } catch (e) {
+        console.warn("Bad message", msg.data);
+      }
+    };
+
+    ws.onclose = () => {
+      setWsStatus(false);
+      setDevStatus(false);
+      // 5s 后重连
+      setTimeout(connect, 5000);
+    };
+
+    ws.onerror = () => {
+      ws.close();
+    };
+  }
+
+  // ── 启动 ──────────────────────────────────────────────────────────────────
+  updateStats();
+  connect();
+</script>
+</body>
+</html>

@@ -1,4 +1,5 @@
 import asyncio
+import json
 from http import HTTPStatus
 from urllib.parse import parse_qs, urlsplit
 
@@ -8,6 +9,7 @@ from config import Config
 from services.openclaw_bridge import get_openclaw_bridge_service
 from utils.logger import logger
 from .session import Session
+from . import event_bus
 
 class XiaozhiServer:
     def __init__(self):
@@ -32,9 +34,30 @@ class XiaozhiServer:
             return getattr(request, "path", "/") or "/"
         return "/"
 
+    async def _dashboard_handler(self, websocket):
+        """Push real-time events to dashboard WebSocket clients."""
+        q = event_bus.subscribe()
+        try:
+            # Send history on connect
+            history = event_bus.get_history()
+            await websocket.send(json.dumps({"type": "history", "events": history}))
+            # Push live events
+            while True:
+                event = await q.get()
+                await websocket.send(json.dumps(event))
+        except Exception:
+            pass
+        finally:
+            event_bus.unsubscribe(q)
+
     async def handler(self, websocket):
         request_path = self._get_request_path(websocket)
         parsed_path = urlsplit(request_path)
+
+        if parsed_path.path == "/dashboard":
+            await self._dashboard_handler(websocket)
+            return
+
         if parsed_path.path == Config.OPENCLAW_BRIDGE_PATH:
             token = ""
             try:
@@ -98,8 +121,21 @@ class XiaozhiServer:
     def _process_request(self, connection, request):
         try:
             upgrade = request.headers.get("Upgrade", "")
-            if request.path in ("/", "/healthz") and str(upgrade).lower() != "websocket":
+            if str(upgrade).lower() == "websocket":
+                return None
+            if request.path in ("/", "/healthz"):
                 return connection.respond(HTTPStatus.OK, "Server is running\n")
+            if request.path == "/dashboard.html":
+                import os
+                html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "dashboard.html")
+                try:
+                    with open(html_path, "r", encoding="utf-8") as f:
+                        body = f.read()
+                    response = connection.respond(HTTPStatus.OK, body)
+                    response.headers["Content-Type"] = "text/html; charset=utf-8"
+                    return response
+                except FileNotFoundError:
+                    return connection.respond(HTTPStatus.NOT_FOUND, "dashboard.html not found")
         except Exception:
             return connection.respond(HTTPStatus.OK, "Server is running\n")
         return None
