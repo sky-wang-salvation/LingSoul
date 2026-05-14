@@ -58,6 +58,15 @@ class AsrService:
         if not ogg_data:
             return ""
 
+        # VAD: 计算 PCM 能量，过滤静音/环境噪声，避免 Whisper 幻觉和无效 API 消耗
+        t_vad0 = time.perf_counter()
+        rms = await asyncio.to_thread(AudioConverter.compute_rms_from_ogg, ogg_data)
+        t_vad1 = time.perf_counter()
+        logger.info(f"ASR VAD rms={rms:.1f} threshold={Config.ASR_MIN_RMS} cost={(t_vad1 - t_vad0):.3f}s")
+        if rms < Config.ASR_MIN_RMS:
+            logger.info(f"ASR skip: energy too low (rms={rms:.1f} < {Config.ASR_MIN_RMS}), likely silence/noise")
+            return ""
+
         try:
             audio_file = io.BytesIO(ogg_data)
             audio_file.name = "audio.ogg"

@@ -1,3 +1,4 @@
+import math
 import subprocess
 from .logger import logger
 import struct
@@ -215,6 +216,36 @@ class AudioConverter:
         except Exception as e:
             logger.error(f"Audio conversion error: {e}")
             return None
+
+    @staticmethod
+    def compute_rms_from_ogg(ogg_data: bytes) -> float:
+        """
+        将 OGG/Opus 解码为 PCM s16le 并计算 RMS 能量值。
+        用于 VAD 判断：低 RMS 表示静音/环境噪声，高 RMS 表示真实语音。
+        返回值范围约 0~32767，纯静音约 50~150，背景噪声约 150~400，语音通常 >500。
+        出错时返回 inf（保守策略：不过滤，交给 ASR 处理）。
+        """
+        try:
+            proc = subprocess.run(
+                [
+                    "ffmpeg", "-hide_banner", "-loglevel", "error",
+                    "-f", "ogg", "-i", "pipe:0",
+                    "-f", "s16le", "-ac", "1", "-ar", "16000", "pipe:1",
+                ],
+                input=ogg_data,
+                capture_output=True,
+                timeout=5,
+            )
+            pcm = proc.stdout
+            if len(pcm) < 2:
+                return 0.0
+            n = len(pcm) // 2
+            samples = struct.unpack(f"<{n}h", pcm[: n * 2])
+            rms = math.sqrt(sum(s * s for s in samples) / n)
+            return rms
+        except Exception as exc:
+            logger.warning(f"RMS compute error: {exc}")
+            return float("inf")
 
     @staticmethod
     def extract_ogg_packets(ogg_data: bytes) -> list[bytes]:

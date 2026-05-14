@@ -16,6 +16,7 @@ class Config:
         cls.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
         cls.OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL")
         cls.WHISPER_MODEL = os.getenv("WHISPER_MODEL", "whisper-1")
+        cls.ASR_MIN_RMS = float(os.getenv("ASR_MIN_RMS", 300))
 
         cls.LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
         cls.LLM_SYSTEM_PROMPT = os.getenv(
@@ -52,6 +53,7 @@ class Config:
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
     OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL")
     WHISPER_MODEL = os.getenv("WHISPER_MODEL", "whisper-1")
+    ASR_MIN_RMS = float(os.getenv("ASR_MIN_RMS", 300))
 
     LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
     LLM_SYSTEM_PROMPT = os.getenv(
