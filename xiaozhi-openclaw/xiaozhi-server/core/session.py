@@ -312,22 +312,25 @@ class Session:
             if not await self._is_turn_active(turn_id):
                 return
 
-            if user_text:
-                event_bus.emit("asr_result", device_id=self.device_id, text=user_text, turn=turn_id)
-                await self.send_json(
-                    {"type": "stt", "session_id": self.id, "text": user_text}
-                )
+            if not user_text:
                 logger.info(
-                    f"[{self.device_id}] LLM start turn={turn_id} input_len={len(user_text)}"
+                    f"[{self.device_id}] ASR empty (silence/noise), skip turn={turn_id}"
                 )
-                assistant_text = await self.llm_service.chat(
-                    user_text,
-                    from_id=self.device_id,
-                    conversation_id=self.id,
-                    sender_name=self.client_id,
-                )
-            else:
-                assistant_text = "我没听清，请再说一遍。"
+                return
+
+            event_bus.emit("asr_result", device_id=self.device_id, text=user_text, turn=turn_id)
+            await self.send_json(
+                {"type": "stt", "session_id": self.id, "text": user_text}
+            )
+            logger.info(
+                f"[{self.device_id}] LLM start turn={turn_id} input_len={len(user_text)}"
+            )
+            assistant_text = await self.llm_service.chat(
+                user_text,
+                from_id=self.device_id,
+                conversation_id=self.id,
+                sender_name=self.client_id,
+            )
 
             if not await self._is_turn_active(turn_id):
                 return

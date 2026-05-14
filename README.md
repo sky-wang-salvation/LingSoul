@@ -66,7 +66,7 @@ cp xiaozhi-openclaw/xiaozhi-server/.env.example xiaozhi-openclaw/xiaozhi-server/
 ```env
 OPENAI_API_KEY=<阶跃星辰 API Key>
 OPENAI_BASE_URL=https://api.stepfun.com/v1
-WHISPER_MODEL=step-asr
+WHISPER_MODEL=stepaudio-2.5-asr
 TTS_MODEL=stepaudio-2.5-tts
 TTS_VOICE=cixingnansheng
 OPENCLAW_BRIDGE_TOKEN=<与 openclaw.json 中一致>
@@ -75,13 +75,12 @@ OPENCLAW_BRIDGE_TOKEN=<与 openclaw.json 中一致>
 ### 3. 启动服务
 
 ```bash
-# 确保 OpenClaw gateway 已运行
-openclaw gateway status
-
-# 启动 xiaozhi-server
+# start_server.sh 会自动重启 OpenClaw gateway 并清理旧进程，直接运行即可：
 cd xiaozhi-openclaw
 bash start_server.sh
 ```
+
+> **说明**：每次启动脚本都会先执行 `openclaw gateway restart`，确保 `openclaw.json` 中的模型配置（当前 `step-3.7-flash`）立即生效，无需手动重启。
 
 ### 4. 家长监控端
 
@@ -116,9 +115,11 @@ idf.py build flash monitor -p /dev/cu.usbmodem3101
 
 | 功能 | 实现方式 |
 |---|---|
-| 语音识别（ASR） | 阶跃星辰 `step-asr` 模型，通过 OpenAI 兼容接口调用 |
+| 语音识别（ASR） | 阶跃星辰 `stepaudio-2.5-asr`，通过 OpenAI 兼容 transcriptions 接口调用 |
 | 语音合成（TTS） | 阶跃星辰 `stepaudio-2.5-tts`，音色 `cixingnansheng` |
 | 对话引擎 | OpenClaw + `step-3.7-flash`，角色设定见 `~/.openclaw/workspace/SOUL.md` |
+| 静默优化 | ASR 识别为空（环境噪声/无语音）时静默跳过，不调用 LLM/TTS，不消耗 token |
+| 打断支持 | 说话时可随时打断灵伴（barge-in），TTS 开始后 0.8s 保护期后即可中断 |
 | 始终聆听 | 固件已禁用唤醒词，设备空闲时自动进入聆听模式（无需说"你好小智"）|
 | 家长监控 | `xiaozhi-server` 内置 `/dashboard.html`，WebSocket 实时推送事件 |
 
