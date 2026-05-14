@@ -1,0 +1,30 @@
+# ESP-IDF build artifacts
+build/
+sdkconfig.old
+dependencies.lock
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+
+# Environment / secrets — NEVER commit
+.env
+.env.*
+*.env
+
+# Editor
+.vscode/
+.clangd
+.idea/
+
+# macOS
+.DS_Store
+
+# Logs & temp
+*.log
+*.tmp
